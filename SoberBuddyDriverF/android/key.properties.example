@@ -1,0 +1,7 @@
+# Copy to key.properties and fill in your release keystore details.
+# Do NOT commit key.properties — it is listed in .gitignore.
+#
+# storeFile=M:/path/to/credentials/android/keystore.jks
+# storePassword=your-store-password
+# keyAlias=your-key-alias
+# keyPassword=your-key-password

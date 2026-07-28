@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "411558557396",
+    "project_id": "soberbuddy-8367f",
+    "storage_bucket": "soberbuddy-8367f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:411558557396:android:a514a913ba78a590bc6d41",
+        "android_client_info": {
+          "package_name": "com.soberbuddy.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3DLN7vacRT6RyadXT4n3hA_dVTm1gBV4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

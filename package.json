@@ -1,0 +1,13 @@
+{
+  "name": "soberbuddy",
+  "private": true,
+  "scripts": {
+    "firebase": "firebase",
+    "functions:install": "npm install --prefix functions",
+    "functions:deploy": "firebase deploy --only functions",
+    "functions:login": "firebase login"
+  },
+  "devDependencies": {
+    "firebase-tools": "^14.0.0"
+  }
+}

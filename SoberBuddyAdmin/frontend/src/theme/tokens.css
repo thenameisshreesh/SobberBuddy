@@ -1,0 +1,120 @@
+:root {
+  --primary-driver: #00d4aa;
+  --primary-rider: #205090;
+  --primary: #128b7d;
+  --accent: #ff6b35;
+  --background: #121212;
+  --surface: #1e1e1e;
+  --surface-hover: #2a2a2a;
+  --text: #ffffff;
+  --text-secondary: #b3b3b3;
+  --border: #333333;
+  --success: #4caf50;
+  --error: #f44336;
+  --warning: #ff9800;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter,Segoe UI,Roboto,sans-serif;
+  background: var(--background);
+  color: var(--text);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.btn {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-driver), var(--primary-rider));
+  color: var(--text);
+}
+
+.btn-secondary {
+  background: var(--surface-hover);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-danger {
+  background: var(--error);
+  color: var(--text);
+}
+
+.btn-success {
+  background: var(--success);
+  color: var(--text);
+}
+
+.input {
+  width: 100%;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th, .table td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+  text-align: left;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-success { background: rgba(76,175,80,.2); color: var(--success); }
+.badge-warning { background: rgba(255,152,0,.2); color: var(--warning); }
+.badge-error { background: rgba(244,67,54,.2); color: var(--error); }
+.badge-info { background: rgba(32,80,144,.3); color: #6fa8ff; }
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.page-title {
+  margin: 0 0 16px;
+  font-size: 24px;
+}
+
+.muted { color: var(--text-secondary); }

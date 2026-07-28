@@ -1,0 +1,19 @@
+{
+  "name": "soberbuddy-functions",
+  "description": "SoberBuddy Cloud Functions",
+  "engines": {
+    "node": "20"
+  },
+  "devDependencies": {
+    "firebase-tools": "^14.27.0"
+  },
+  "main": "index.js",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.3.0"
+  }
+}

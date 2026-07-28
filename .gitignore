@@ -1,0 +1,57 @@
+# Root caches / local tooling (never push)
+.gradle/
+.pub-cache/
+.tmp/
+.cursor/
+.firebase/
+*.log
+
+# Dependencies
+node_modules/
+**/.venv/
+**/venv/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Build / release binaries
+**/build/
+**/dist/
+release/
+*.aab
+*.apk
+*.ipa
+*.dSYM.zip
+
+# Secrets / signing
+**/.env
+**/.env.*
+**/key.properties
+**/*.jks
+**/*.keystore
+**/local.properties
+**/serviceAccountKey.json
+**/*serviceAccount*.json
+**/credentials.json
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Flutter / Dart
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/Flutter/ephemeral/
+**/ios/Flutter/.last_build_id
+**/ios/Pods/
+**/macos/Flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/linux/flutter/ephemeral/
+
+# Coverage / symbols
+**/coverage/
+**/app.*.symbols
+**/app.*.map.json
