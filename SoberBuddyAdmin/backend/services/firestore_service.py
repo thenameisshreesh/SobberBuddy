@@ -1,3 +1,4 @@
+import json
 import os
 from functools import lru_cache
 
@@ -9,11 +10,14 @@ from firebase_admin import credentials, firestore, messaging, storage
 def init_firebase():
     if firebase_admin._apps:
         return
+    cred_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
     cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     project_id = os.getenv("FIREBASE_PROJECT_ID", "soberbuddy-8367f")
-    if cred_path and os.path.isfile(cred_path):
-        cred = credentials.Certificate(cred_path)
-        firebase_admin.initialize_app(cred, {"storageBucket": f"{project_id}.firebasestorage.app"})
+    options = {"storageBucket": f"{project_id}.firebasestorage.app"}
+    if cred_json:
+        firebase_admin.initialize_app(credentials.Certificate(json.loads(cred_json)), options)
+    elif cred_path and os.path.isfile(cred_path):
+        firebase_admin.initialize_app(credentials.Certificate(cred_path), options)
     else:
         firebase_admin.initialize_app(options={"projectId": project_id})
 
