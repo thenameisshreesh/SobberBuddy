@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../core/constants/app_constants.dart';
@@ -101,22 +99,8 @@ class AuthProvider extends ChangeNotifier {
   Future<String?> sendPhoneOtp(
     String phone, {
     bool forceResend = false,
-    bool signInOnAutoVerify = true,
-  }) async {
-    final completer = Completer<String?>();
-    await _phoneAuth.sendOtp(
-      phone,
-      forceResend: forceResend,
-      onCodeSent: (_, __) => completer.complete(null),
-      onError: (e) => completer.complete(e),
-      onAutoVerify: signInOnAutoVerify
-          ? (credential) async {
-              await FirebaseService.auth.signInWithCredential(credential);
-              completer.complete(null);
-            }
-          : null,
-    );
-    return completer.future;
+  }) {
+    return _phoneAuth.sendOtp(phone, forceResend: forceResend);
   }
 
   Future<String?> verifyPhoneOtp(String code) async {
@@ -147,8 +131,8 @@ class AuthProvider extends ChangeNotifier {
       await NotificationService.instance.saveTokenToFirestore(uid, 'drivers');
       NotificationService.instance.listenTokenRefresh(uid, 'drivers');
       return null;
-    } on FirebaseAuthException catch (e) {
-      return e.message ?? 'Invalid OTP';
+    } catch (e) {
+      return mapPhoneAuthError(e);
     }
   }
 
@@ -202,8 +186,8 @@ class AuthProvider extends ChangeNotifier {
       await NotificationService.instance.saveTokenToFirestore(uid, 'drivers');
       NotificationService.instance.listenTokenRefresh(uid, 'drivers');
       return null;
-    } on FirebaseAuthException catch (e) {
-      return e.message ?? 'Signup failed';
+    } catch (e) {
+      return mapPhoneAuthError(e);
     } finally {
       _isSigningUp = false;
     }

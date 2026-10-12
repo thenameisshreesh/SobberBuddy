@@ -17,7 +17,6 @@ import '../../features/payment/presentation/payment_summary_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/trip/presentation/trip_details_screen.dart';
 import '../constants/app_theme.dart';
-import '../widgets/loading_spinner.dart';
 import 'shell_tab_notifier.dart';
 
 /// Reads route [extra] params passed as a [Map].
@@ -170,23 +169,19 @@ class _SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.white,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              'assets/splash.png',
-              width: 160,
-              height: 160,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.local_taxi,
-                size: 96,
-                color: AppColors.primary,
-              ),
+              'assets/splash-logo.png',
+              width: 280,
+              height: 280,
+              fit: BoxFit.contain,
             ),
             const SizedBox(height: AppSpacing.xl),
-            const LoadingSpinner(message: 'Starting SoberBuddy...'),
+            const CircularProgressIndicator(color: AppColors.primary),
           ],
         ),
       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ionicons/ionicons.dart';
 import '../../core/constants/theme.dart';
 
@@ -13,6 +14,7 @@ class IconTextInput extends StatelessWidget {
     this.maxLength,
     this.onChanged,
     this.readOnly = false,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -23,6 +25,7 @@ class IconTextInput extends StatelessWidget {
   final int? maxLength;
   final ValueChanged<String>? onChanged;
   final bool readOnly;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +49,7 @@ class IconTextInput extends StatelessWidget {
               maxLength: maxLength,
               onChanged: onChanged,
               readOnly: readOnly,
+              inputFormatters: inputFormatters,
               style: const TextStyle(color: AppColors.text, fontSize: 16),
               decoration: InputDecoration(
                 hintText: hint,

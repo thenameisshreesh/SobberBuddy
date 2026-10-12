@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Used by adaptive launcher icon AND Android 12 system splash fallback -->
+    <color name="ic_launcher_background">#000000</color>
+</resources>

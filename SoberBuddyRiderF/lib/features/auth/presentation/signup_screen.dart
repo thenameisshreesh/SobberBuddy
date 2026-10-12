@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -63,20 +64,30 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     final error = await ref.read(authProvider.notifier).sendPhoneOtp(
           _mobileController.text.trim(),
           forceResend: forceResend,
-          signInOnAutoVerify: false,
         );
     if (mounted) {
       setState(() {
         _loading = false;
-        if (error == null) _otpSent = true;
+        if (error == null) {
+          _otpSent = true;
+          _otpController.clear();
+        }
       });
-      if (error != null) await _showAlert('OTP Failed', error);
+      if (error != null) {
+        await _showAlert('OTP Failed', error);
+      } else {
+        await _showAlert(
+          'SMS sent',
+          'We sent an SMS OTP to +91${_mobileController.text.trim()}. Enter the code from the message.',
+        );
+      }
     }
   }
 
   Future<void> _completeSignup() async {
-    if (_otpController.text.length < 6) {
-      await _showAlert('Error', 'Enter the 6-digit OTP');
+    final otp = _otpController.text.trim();
+    if (otp.length < 4 || otp.length > 6 || !RegExp(r'^\d+$').hasMatch(otp)) {
+      await _showAlert('Error', 'Enter the 4–6 digit OTP from your SMS');
       return;
     }
     setState(() => _loading = true);
@@ -112,8 +123,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               const Icon(Icons.person_add, size: 72, color: AppColors.primary),
               const SizedBox(height: AppSpacing.lg),
               const Text(
-                'Sign up with mobile OTP',
+                'Sign up with SMS OTP',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'We will send a one-time code by SMS',
+                style: TextStyle(color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.xl),
               TextField(
@@ -127,6 +144,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 controller: _mobileController,
                 readOnly: _otpSent,
                 keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
                 decoration: const InputDecoration(labelText: 'Mobile Number (+91)'),
               ),
               if (_otpSent) ...[
@@ -134,7 +155,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 TextField(
                   controller: _otpController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Enter OTP'),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Enter SMS OTP',
+                    hintText: '4–6 digit code from SMS',
+                  ),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
@@ -145,7 +173,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   child: Text(
                     _loading
                         ? 'Please wait...'
-                        : (_otpSent ? 'Verify & Create Account' : 'Send OTP'),
+                        : (_otpSent ? 'Verify & Create Account' : 'Send SMS OTP'),
                   ),
                 ),
               ),
@@ -153,7 +181,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 TextButton(
                   onPressed: _loading ? null : () => _sendOtp(forceResend: true),
-                  child: const Text('Resend OTP'),
+                  child: const Text('Resend SMS OTP'),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),

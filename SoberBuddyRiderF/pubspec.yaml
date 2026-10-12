@@ -33,6 +33,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/app_icon_master.png
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: assets/app_icon_master.png
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
@@ -40,4 +49,7 @@ flutter:
     - assets/adaptive-icon.png
     - assets/adaptive-icon-new.png
     - assets/splash.png
+    - assets/splash-icon.png
+    - assets/splash-logo.png
     - assets/favicon.png
+    - assets/app_icon_master.png

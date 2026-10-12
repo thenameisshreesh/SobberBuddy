@@ -16,6 +16,53 @@
       "api_key": [
         {
           "current_key": "AIzaSyB3DLN7vacRT6RyadXT4n3hA_dVTm1gBV4"
+        },
+        {
+          "current_key": "AIzaSyDsgq9gbm6ELifjwM7whbzozDNj3JYF5ek"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:411558557396:android:29e502e5a6fdcfd4bc6d41",
+        "android_client_info": {
+          "package_name": "com.soberbuddy.rider"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3DLN7vacRT6RyadXT4n3hA_dVTm1gBV4"
+        },
+        {
+          "current_key": "AIzaSyDsgq9gbm6ELifjwM7whbzozDNj3JYF5ek"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:411558557396:android:887d56998edfda9bbc6d41",
+        "android_client_info": {
+          "package_name": "com.soberbuddy.rider.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3DLN7vacRT6RyadXT4n3hA_dVTm1gBV4"
+        },
+        {
+          "current_key": "AIzaSyDsgq9gbm6ELifjwM7whbzozDNj3JYF5ek"
         }
       ],
       "services": {

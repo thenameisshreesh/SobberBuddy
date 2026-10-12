@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ionicons/ionicons.dart';
 import 'package:provider/provider.dart';
@@ -66,18 +67,29 @@ class _SignupScreenState extends State<SignupScreen> {
     final error = await context.read<AuthProvider>().sendPhoneOtp(
           _phoneController.text,
           forceResend: _otpSent,
-          signInOnAutoVerify: false,
         );
     setState(() {
       _loading = false;
-      if (error == null) _otpSent = true;
+      if (error == null) {
+        _otpSent = true;
+        _otpController.clear();
+      }
     });
-    if (error != null && mounted) _showError(error);
+    if (!mounted) return;
+    if (error != null) {
+      _showError(error);
+    } else {
+      _showInfo(
+        'SMS sent',
+        'We sent an SMS OTP to +91${_phoneController.text.trim()}. Enter the code from the message.',
+      );
+    }
   }
 
   Future<void> _completeSignup() async {
-    if (_otpController.text.length < 6) {
-      _showError('Enter the 6-digit OTP');
+    final otp = _otpController.text.trim();
+    if (otp.length < 4 || otp.length > 6 || !RegExp(r'^\d+$').hasMatch(otp)) {
+      _showError('Enter the 4–6 digit OTP from your SMS');
       return;
     }
     setState(() => _loading = true);
@@ -85,7 +97,7 @@ class _SignupScreenState extends State<SignupScreen> {
           name: _nameController.text.trim(),
           phone: _phoneController.text.trim(),
           licenseNumber: _licenseController.text.trim(),
-          otp: _otpController.text.trim(),
+          otp: otp,
         );
     setState(() => _loading = false);
     if (!mounted) return;
@@ -94,6 +106,19 @@ class _SignupScreenState extends State<SignupScreen> {
     } else {
       context.go('/onboarding/documents');
     }
+  }
+
+  void _showInfo(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+        ],
+      ),
+    );
   }
 
   @override
@@ -107,9 +132,15 @@ class _SignupScreenState extends State<SignupScreen> {
             children: [
               const Icon(Ionicons.car_sport, size: 64, color: Color(0xFF00D4AA)),
               const SizedBox(height: 16),
-              const Text('Sign up with mobile OTP', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const Text('Sign up with SMS OTP', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              const Text(
+                'We will send a one-time code by SMS',
+                style: TextStyle(color: Color(0xFFB3B3B3), fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 24),
-              IconTextInput(controller: _nameController, hint: 'Full Name', icon: Ionicons.person_outline),
+              IconTextInput(controller: _nameController, hint: 'Full Name', icon: Ionicons.person_outline, readOnly: _otpSent),
               const SizedBox(height: 12),
               IconTextInput(
                 controller: _phoneController,
@@ -118,16 +149,29 @@ class _SignupScreenState extends State<SignupScreen> {
                 keyboardType: TextInputType.phone,
                 maxLength: 10,
                 readOnly: _otpSent,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               const SizedBox(height: 12),
               IconTextInput(controller: _licenseController, hint: 'Driver License Number', icon: Ionicons.card_outline, readOnly: _otpSent),
               if (_otpSent) ...[
                 const SizedBox(height: 12),
-                IconTextInput(controller: _otpController, hint: 'Enter OTP', icon: Ionicons.keypad_outline, keyboardType: TextInputType.number),
+                IconTextInput(
+                  controller: _otpController,
+                  hint: 'Enter SMS OTP (4–6 digits)',
+                  icon: Ionicons.keypad_outline,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _loading ? null : _sendOtp,
+                  child: const Text('Resend SMS OTP'),
+                ),
               ],
               const SizedBox(height: 24),
               PrimaryButton(
-                label: _loading ? 'Please wait...' : (_otpSent ? 'Verify & Create Account' : 'Send OTP'),
+                label: _loading ? 'Please wait...' : (_otpSent ? 'Verify & Create Account' : 'Send SMS OTP'),
                 icon: Ionicons.car_sport,
                 loading: _loading,
                 onPressed: _otpSent ? _completeSignup : _sendOtp,

@@ -39,7 +39,45 @@ flutter run
 
 1. Add Android/iOS apps to Firebase Console with bundle ID `com.soberbuddy.driver`
 2. Run `flutterfire configure` to regenerate `lib/firebase_options.dart` with correct app IDs
-3. Enable Email/Password auth in Firebase Console
+3. Phone Auth SMS provider is **not** required (OTP uses 2Factor via Cloud Functions)
+4. Ensure `TWOFACTOR_API_KEY` secret + IAM Token Creator are set (see `functions/OTP.md`)
+
+## Folder Structure
+
+```
+lib/
+├── main.dart                    # Entry, splash delay, theme, Provider
+├── firebase_options.dart        # Firebase config
+├── app/
+│   └── router.dart              # go_router routes + bottom nav shell
+├── core/
+│   ├── constants/
+│   │   ├── app_constants.dart   # userType, bundle ID
+│   │   └── theme.dart           # Colors, spacing, ThemeData
+│   └── utils/
+│       └── helpers.dart         # Fare calc, formatting
+├── models/
+│   └── trip_model.dart          # Trip document wrapper
+├── services/
+│   ├── firebase_service.dart    # Firebase init
+│   ├── phone_auth_service.dart  # SMS OTP via Cloud Functions + 2Factor
+│   ├── location_service.dart    # GPS + geocoding
+│   └── trip_service.dart        # All Firestore trip operations
+├── providers/
+│   └── auth_provider.dart       # Auth state + login/signup/delete
+├── guards/
+│   └── user_type_guard.dart     # Driver-only guard
+├── widgets/
+│   ├── loading_spinner.dart
+│   ├── map_component.dart
+│   ├── shared_widgets.dart      # Inputs, buttons, cards, etc.
+│   └── trip_alert_overlay.dart
+└── screens/
+    ├── auth/                    # Login, Signup, ForgotPassword
+    ├── dashboard/               # Dashboard, Trip, TripCompletion
+    ├── history/                 # Earnings, TripHistory, TripDetails, RatingHistory
+    └── profile/                 # Profile, Help
+```
 
 ### Google Maps setup
 
@@ -62,41 +100,14 @@ Screens → Providers → Services → Firestore
 3. Signs out if: no doc, `userType != 'driver'`, account deleted/inactive
 4. `go_router` redirects unauthenticated users to `/login`
 
-## Folder Structure
+### SMS OTP login/signup
 
-```
-lib/
-├── main.dart                    # Entry, splash delay, theme, Provider
-├── firebase_options.dart        # Firebase config
-├── app/
-│   └── router.dart              # go_router routes + bottom nav shell
-├── core/
-│   ├── constants/
-│   │   ├── app_constants.dart   # userType, bundle ID
-│   │   └── theme.dart           # Colors, spacing, ThemeData
-│   └── utils/
-│       └── helpers.dart         # Fare calc, formatting
-├── models/
-│   └── trip_model.dart          # Trip document wrapper
-├── services/
-│   ├── firebase_service.dart    # Firebase init
-│   ├── location_service.dart    # GPS + geocoding
-│   └── trip_service.dart        # All Firestore trip operations
-├── providers/
-│   └── auth_provider.dart       # Auth state + login/signup/delete
-├── guards/
-│   └── user_type_guard.dart     # Driver-only guard
-├── widgets/
-│   ├── loading_spinner.dart
-│   ├── map_component.dart
-│   ├── shared_widgets.dart      # Inputs, buttons, cards, etc.
-│   └── trip_alert_overlay.dart
-└── screens/
-    ├── auth/                    # Login, Signup, ForgotPassword
-    ├── dashboard/               # Dashboard, Trip, TripCompletion
-    ├── history/                 # Earnings, TripHistory, TripDetails, RatingHistory
-    └── profile/                 # Profile, Help
-```
+1. UI → `AuthProvider.sendPhoneOtp` / `verifyPhoneOtp` / `signupWithPhone`
+2. `PhoneAuthService` → Cloud Functions `sendPhoneOtp` / `verifyPhoneOtp`
+3. 2Factor SMS template `SoberBuddy` (sender `SBRBDY`) → custom token → Firebase session
+4. Signup also writes `users` + `drivers` docs
+
+OTP is **SMS only**. See [`functions/OTP.md`](../functions/OTP.md).
 
 ## Navigation Map
 

@@ -1,40 +1,138 @@
-import 'dart:async';
-
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
-String mapPhoneAuthError(FirebaseAuthException e) {
-  switch (e.code) {
-    case 'too-many-requests':
-      return 'Too many OTP attempts. Please wait 30–60 minutes before trying again, or use a test number during development.';
-    case 'invalid-phone-number':
-      return 'Invalid phone number. Enter a valid 10-digit Indian mobile number.';
-    case 'quota-exceeded':
-      return 'SMS quota exceeded. Please try again later.';
-    case 'operation-not-allowed':
-      return 'Phone sign-in is not enabled for this project. Contact support.';
-    case 'invalid-verification-code':
-      return 'Incorrect OTP. Please check the code and try again.';
-    case 'session-expired':
-      return 'OTP expired. Tap Resend OTP to get a new code.';
-    case 'missing-verification-id':
-      return 'Please request OTP first.';
-    case 'credential-already-in-use':
-      return 'This phone number is already linked to another account.';
-    default:
-      return e.message ?? 'Verification failed. Please try again.';
+String mapPhoneAuthError(Object error) {
+  assert(() {
+    debugPrint('PhoneAuth error: $error');
+    return true;
+  }());
+
+  if (error is FirebaseFunctionsException) {
+    final message = (error.message ?? '').trim();
+    switch (error.code) {
+      case 'invalid-argument':
+        return message.isNotEmpty
+            ? message
+            : 'Invalid phone number or OTP. Please try again.';
+      case 'resource-exhausted':
+        return message.isNotEmpty
+            ? message
+            : 'Too many OTP attempts. Please wait before trying again.';
+      case 'failed-precondition':
+        return message.isNotEmpty ? message : 'Please request OTP first.';
+      case 'deadline-exceeded':
+        return message.isNotEmpty
+            ? message
+            : 'OTP expired. Tap Resend OTP to get a new code.';
+      case 'permission-denied':
+        return message.isNotEmpty
+            ? message
+            : 'Incorrect OTP. Please check the code and try again.';
+      case 'unavailable':
+        return 'Network error. Check your internet connection and try again.';
+      case 'unauthenticated':
+        return 'Verification failed. Please try again.';
+      case 'internal':
+        return message.isNotEmpty && message.toUpperCase() != 'INTERNAL'
+            ? message
+            : 'Verification failed due to a temporary error. Please try again.';
+      default:
+        if (message.toUpperCase() == 'INTERNAL' || message.isEmpty) {
+          return 'Verification failed due to a temporary error. Please try again.';
+        }
+        return message;
+    }
   }
+
+  if (error is FirebaseAuthException) {
+    switch (error.code) {
+      case 'invalid-custom-token':
+      case 'custom-token-mismatch':
+      case 'internal':
+        return 'Verification failed due to a temporary error. Please try again.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection and try again.';
+      case 'too-many-requests':
+        return 'Too many OTP attempts. Please wait 30–60 minutes before trying again.';
+      case 'missing-verification-id':
+        return 'Please request OTP first.';
+      case 'invalid-verification-code':
+      case 'invalid-argument':
+      case 'permission-denied':
+        return error.message?.trim().isNotEmpty == true
+            ? error.message!.trim()
+            : 'Incorrect OTP. Please check the code and try again.';
+      case 'session-expired':
+      case 'deadline-exceeded':
+        return error.message?.trim().isNotEmpty == true
+            ? error.message!.trim()
+            : 'OTP expired. Tap Resend OTP to get a new code.';
+      case 'failed-precondition':
+      case 'resource-exhausted':
+        return error.message?.trim().isNotEmpty == true
+            ? error.message!.trim()
+            : 'Verification failed. Please try again.';
+      default:
+        final raw = (error.message ?? '').trim();
+        if (raw.toUpperCase() == 'INTERNAL') {
+          return 'Verification failed due to a temporary error. Please try again.';
+        }
+        final message = raw.toLowerCase();
+        if (message.contains('network') || message.contains('unable to resolve')) {
+          return 'Network error. Check your internet connection and try again.';
+        }
+        if (raw.isNotEmpty) return raw;
+        return 'Verification failed. Please try again.';
+    }
+  }
+
+  return 'Verification failed. Please try again.';
+}
+
+String? validateIndianMobile(String phoneNumber) {
+  final digits = phoneNumber.replaceAll(RegExp(r'\D'), '');
+  final local = digits.length == 12 && digits.startsWith('91')
+      ? digits.substring(2)
+      : digits.length == 11 && digits.startsWith('0')
+          ? digits.substring(1)
+          : digits;
+  if (local.length != 10 || !RegExp(r'^[6-9]\d{9}$').hasMatch(local)) {
+    return 'Enter a valid 10-digit Indian mobile number.';
+  }
+  return null;
+}
+
+String formatIndianE164(String phoneNumber) {
+  final digits = phoneNumber.replaceAll(RegExp(r'\D'), '');
+  if (digits.length == 12 && digits.startsWith('91')) {
+    return '+$digits';
+  }
+  if (digits.length == 11 && digits.startsWith('0')) {
+    return '+91${digits.substring(1)}';
+  }
+  if (digits.length == 10) {
+    return '+91$digits';
+  }
+  return phoneNumber.startsWith('+') ? phoneNumber : '+91$digits';
 }
 
 class PhoneAuthService {
-  PhoneAuthService({FirebaseAuth? auth}) : _auth = auth ?? FirebaseAuth.instance;
+  PhoneAuthService({
+    FirebaseAuth? auth,
+    FirebaseFunctions? functions,
+  })  : _auth = auth ?? FirebaseAuth.instance,
+        _functions = functions ??
+            FirebaseFunctions.instanceFor(region: 'us-central1');
 
   final FirebaseAuth _auth;
-  String? _verificationId;
-  int? _resendToken;
+  final FirebaseFunctions _functions;
+  String? _sessionId;
+  String? _pendingPhone;
   DateTime? _lastOtpSentAt;
 
   static const _resendCooldown = Duration(seconds: 30);
+  static const sendTimeout = Duration(seconds: 60);
 
   bool get canResend {
     if (_lastOtpSentAt == null) return true;
@@ -48,64 +146,77 @@ class PhoneAuthService {
     return _resendCooldown - elapsed;
   }
 
-  Future<void> sendOtp(
+  /// Sends SMS OTP via 2Factor Cloud Function (template SoberBuddy / SBRBDY).
+  /// Returns null on success, else a user-facing error.
+  Future<String?> sendOtp(
     String phoneNumber, {
-    required void Function(String verificationId, int? resendToken) onCodeSent,
-    required void Function(String error) onError,
-    void Function(PhoneAuthCredential credential)? onAutoVerify,
     bool forceResend = false,
   }) async {
     if (!forceResend && !canResend) {
       final secs = resendCooldownRemaining.inSeconds;
-      onError('Please wait $secs seconds before requesting another OTP.');
-      return;
+      return 'Please wait $secs seconds before requesting another OTP.';
     }
 
-    final formatted = phoneNumber.startsWith('+') ? phoneNumber : '+91$phoneNumber';
+    final validationError = validateIndianMobile(phoneNumber);
+    if (validationError != null) return validationError;
 
     try {
-      await _auth.verifyPhoneNumber(
-        phoneNumber: formatted,
-        verificationCompleted: (credential) {
-          onAutoVerify?.call(credential);
-        },
-        verificationFailed: (e) => onError(mapPhoneAuthError(e)),
-        codeSent: (verificationId, forceResendingToken) {
-          _verificationId = verificationId;
-          _resendToken = forceResendingToken;
-          _lastOtpSentAt = DateTime.now();
-          onCodeSent(verificationId, forceResendingToken);
-        },
-        codeAutoRetrievalTimeout: (verificationId) {
-          _verificationId = verificationId;
-        },
-        forceResendingToken: forceResend ? _resendToken : null,
-        timeout: const Duration(seconds: 60),
+      final callable = _functions.httpsCallable(
+        'sendPhoneOtp',
+        options: HttpsCallableOptions(timeout: sendTimeout),
       );
-    } on FirebaseAuthException catch (e) {
-      onError(mapPhoneAuthError(e));
+      final result = await callable.call(<String, dynamic>{
+        'phone': phoneNumber,
+      });
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final sessionId = data['sessionId']?.toString();
+      if (sessionId == null || sessionId.isEmpty) {
+        return 'Failed to send OTP. Please try again.';
+      }
+      _sessionId = sessionId;
+      _pendingPhone = phoneNumber;
+      _lastOtpSentAt = DateTime.now();
+      return null;
+    } catch (e) {
+      return mapPhoneAuthError(e);
     }
   }
 
-  Future<UserCredential> verifyOtp(String smsCode, {String? verificationId}) async {
-    final vid = verificationId ?? _verificationId;
-    if (vid == null) {
+  Future<UserCredential> verifyOtp(String smsCode, {String? sessionId}) async {
+    final sid = sessionId ?? _sessionId;
+    final phone = _pendingPhone;
+    if (sid == null || phone == null) {
       throw FirebaseAuthException(
         code: 'missing-verification-id',
         message: 'Please request OTP first',
       );
     }
-    final credential = PhoneAuthProvider.credential(
-      verificationId: vid,
-      smsCode: smsCode,
-    );
-    return _auth.signInWithCredential(credential);
-  }
 
-  static Future<void> configureForPlatform() async {
-    if (kDebugMode && !kIsWeb) {
-      await FirebaseAuth.instance.setSettings(
-        appVerificationDisabledForTesting: true,
+    try {
+      final callable = _functions.httpsCallable(
+        'verifyPhoneOtp',
+        options: HttpsCallableOptions(timeout: sendTimeout),
+      );
+      final result = await callable.call(<String, dynamic>{
+        'phone': phone,
+        'sessionId': sid,
+        'otp': smsCode.trim(),
+      });
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final customToken = data['customToken']?.toString();
+      if (customToken == null || customToken.isEmpty) {
+        throw FirebaseAuthException(
+          code: 'invalid-custom-token',
+          message: 'Verification failed',
+        );
+      }
+      return _auth.signInWithCustomToken(customToken);
+    } on FirebaseAuthException {
+      rethrow;
+    } on FirebaseFunctionsException catch (e) {
+      throw FirebaseAuthException(
+        code: e.code,
+        message: e.message,
       );
     }
   }

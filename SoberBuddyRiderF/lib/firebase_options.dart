@@ -1,6 +1,6 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
 
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
@@ -9,7 +9,10 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return android;
+        // Debug APK uses applicationIdSuffix ".dev" → must use the .dev Firebase app.
+        // Wrong appId forces Play Integrity to fail and falls back to the ugly
+        // soberbuddy-8367f.firebaseapp.com/__/auth/handler reCAPTCHA page.
+        return kDebugMode ? androidDev : android;
       case TargetPlatform.iOS:
         return ios;
       default:
@@ -27,9 +30,20 @@ class DefaultFirebaseOptions {
     measurementId: 'G-9FPJC95X48',
   );
 
+  /// Production / release: `com.soberbuddy.rider`
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyB3DLN7vacRT6RyadXT4n3hA_dVTm1gBV4',
     appId: '1:411558557396:android:29e502e5a6fdcfd4bc6d41',
+    messagingSenderId: '411558557396',
+    projectId: 'soberbuddy-8367f',
+    authDomain: 'soberbuddy-8367f.firebaseapp.com',
+    storageBucket: 'soberbuddy-8367f.firebasestorage.app',
+  );
+
+  /// Debug: `com.soberbuddy.rider.dev` (see google-services.json)
+  static const FirebaseOptions androidDev = FirebaseOptions(
+    apiKey: 'AIzaSyB3DLN7vacRT6RyadXT4n3hA_dVTm1gBV4',
+    appId: '1:411558557396:android:887d56998edfda9bbc6d41',
     messagingSenderId: '411558557396',
     projectId: 'soberbuddy-8367f',
     authDomain: 'soberbuddy-8367f.firebaseapp.com',

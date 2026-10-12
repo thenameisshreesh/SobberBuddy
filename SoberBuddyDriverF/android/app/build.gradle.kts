@@ -14,6 +14,15 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+val isReleaseTask = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true)
+}
+if (isReleaseTask && !keystorePropertiesFile.exists()) {
+    throw GradleException(
+        "Missing android/key.properties. Copy key.properties.example and fill release signing credentials before building release."
+    )
+}
+
 android {
     namespace = "com.soberbuddy.driver"
     compileSdk = flutter.compileSdkVersion
@@ -34,8 +43,8 @@ android {
     }
 
     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
-            create("release") {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
                 storeFile = file(keystoreProperties["storeFile"] as String)
@@ -46,11 +55,8 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // No debug-signing fallback — release requires key.properties (checked above).
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             isShrinkResources = false
         }
@@ -69,6 +75,8 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Helps Firebase Phone Auth use Play Integrity instead of browser reCAPTCHA.
+    implementation("com.google.android.play:integrity:1.4.0")
 }
 
 apply(plugin = "com.google.gms.google-services")

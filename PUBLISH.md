@@ -59,6 +59,32 @@ flutter build appbundle --release
 - Production Rider Android app registered: `com.soberbuddy.rider`
 - Debug Rider builds use `com.soberbuddy.rider.dev` (side-by-side with Play Store app)
 
+### Phone OTP — 2Factor (Rider & Driver)
+
+Rider/Driver SMS OTP is sent by **2Factor.in** through Cloud Functions; apps sign in with a Firebase custom token. The 2Factor API key must be stored as a Functions secret (never in the apps).
+
+```powershell
+cd M:\me\Projects\SoberBuddyF
+firebase functions:secrets:set TWOFACTOR_API_KEY
+firebase deploy --only functions:sendPhoneOtp,functions:verifyPhoneOtp
+```
+
+Details: [`functions/OTP.md`](functions/OTP.md).
+
+Firebase Console **Phone** sign-in / SHA fingerprints are no longer required for Rider/Driver OTP.
+
+**Local fingerprints (this machine):**
+
+| Cert | SHA-1 | SHA-256 |
+|------|-------|---------|
+| Debug | `7F:1A:69:9B:D2:22:20:F9:97:A5:0C:F5:1A:D6:16:22:BD:18:36:52` | `8D:78:14:5C:45:66:78:E3:30:F1:0D:2B:4E:2D:31:68:AD:1D:31:77:27:BD:89:F3:1A:FB:FC:6B:68:F1:BC:12` |
+| Rider release | `69:24:BA:51:FE:92:7E:E4:E1:5B:62:8A:96:90:54:6C:BF:99:6E:90` | `8F:BE:AC:E6:6E:76:8D:A8:26:32:C3:D6:55:F0:87:D1:2D:49:2B:BC:A9:5F:A3:72:AB:3D:D9:A8:63:EA:1E:DA` |
+| Driver release | `D7:FF:69:2C:5E:7E:3A:F3:B7:8D:21:F8:5D:5A:95:49:C8:37:CF:47` | `24:2F:C3:03:B3:78:A6:31:6E:40:26:B8:86:23:E9:B2:7B:61:1C:11:B3:E7:59:5F:A0:47:DD:F1:FE:65:BC:56` |
+
+For Play Store installs, also add SHA from **Play Console → App → Setup → App signing → App signing key certificate**.
+
+After adding fingerprints, wait a few minutes, then reinstall a fresh release build.
+
 ## Pre-upload checklist
 
 - [ ] Test release APK/AAB on a physical device

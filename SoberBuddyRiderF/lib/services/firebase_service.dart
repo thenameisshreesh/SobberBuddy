@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../firebase_options.dart';
-import 'phone_auth_service.dart';
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
   return FirebaseAuth.instance;
@@ -21,10 +21,26 @@ class FirebaseService {
   final FirebaseFirestore _db;
 
   static Future<void> initialize() async {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    await PhoneAuthService.configureForPlatform();
+    if (Firebase.apps.isEmpty) {
+      // On Android, initialize from google-services.json so the Firebase Android
+      // appId always matches the installed package (com.soberbuddy.rider vs .dev).
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        await Firebase.initializeApp();
+      } else {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+      }
+    }
+
+    assert(() {
+      final opts = Firebase.app().options;
+      debugPrint(
+        'Firebase ready project=${opts.projectId} appId=${opts.appId}',
+      );
+      return true;
+    }());
+
     await ensureFirestoreOnline();
   }
 

@@ -89,7 +89,10 @@ class AuthNotifier extends Notifier<AuthState> {
       try {
         return await operation();
       } catch (error) {
-        debugPrint('Attempt $attempt failed: $error');
+        assert(() {
+          debugPrint('Attempt $attempt failed: $error');
+          return true;
+        }());
         if (attempt == maxRetries) rethrow;
         await Future<void>.delayed(Duration(milliseconds: 1000 * attempt));
         await FirebaseService.ensureFirestoreOnline();
@@ -119,40 +122,33 @@ class AuthNotifier extends Notifier<AuthState> {
 
       return AccountStatusResult(isDeleted: false, userData: userData);
     } catch (error) {
-      debugPrint('Error checking account status: $error');
+      assert(() {
+        debugPrint('Error checking account status: $error');
+        return true;
+      }());
       return const AccountStatusResult(isDeleted: false);
     }
   }
 
   Future<UserProfile?> fetchUserData(String uid) {
     return retryOperation(() async {
-      debugPrint('Fetching user data for: $uid');
       await FirebaseService.ensureFirestoreOnline();
 
       final userDoc = await _db.collection('users').doc(uid).get();
       if (userDoc.exists) {
-        final userData = UserProfile.fromFirestore(userDoc.data()!);
-        debugPrint('User data fetched: ${userData.userType}');
-        return userData;
+        return UserProfile.fromFirestore(userDoc.data()!);
       }
 
-      debugPrint('No user document found');
       return null;
     });
   }
 
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
-    debugPrint(
-      'Auth state changed: ${firebaseUser != null ? 'User logged in' : 'No user'}',
-    );
-
     if (_isSigningUp) {
-      debugPrint('Signup in progress, deferring auth listener');
       return;
     }
 
     if (_isCheckingAccount) {
-      debugPrint('Already checking account, skipping...');
       return;
     }
 
@@ -161,11 +157,9 @@ class AuthNotifier extends Notifier<AuthState> {
       try {
         await FirebaseService.ensureFirestoreOnline();
 
-        debugPrint('Checking account status for: ${firebaseUser.uid}');
         final accountCheck = await checkAccountStatus(firebaseUser.uid);
 
         if (accountCheck.isDeleted) {
-          debugPrint('Account is deleted, signing out...');
           state = AuthState(
             loading: false,
             error: accountCheck.message,
@@ -177,10 +171,7 @@ class AuthNotifier extends Notifier<AuthState> {
         final userData = accountCheck.userData;
 
         if (userData != null) {
-          debugPrint('Account is active, user type: ${userData.userType}');
-
           if (userData.userType != AppConfig.userType) {
-            debugPrint('Wrong user type, signing out...');
             final errorMsg =
                 'This app is for ${AppConfig.userType}s only. Please use the ${userData.userType} app.';
             state = AuthState(loading: false, error: errorMsg);
@@ -194,9 +185,7 @@ class AuthNotifier extends Notifier<AuthState> {
             userType: userData.userType,
             loading: false,
           );
-          debugPrint('User logged in successfully');
         } else {
-          debugPrint('No user data found, signing out...');
           state = const AuthState(
             loading: false,
             error: 'User profile not found',
@@ -204,10 +193,9 @@ class AuthNotifier extends Notifier<AuthState> {
           await _auth.signOut();
         }
       } catch (error) {
-        debugPrint('Error fetching user data: $error');
         state = AuthState(
           loading: false,
-          error: error.toString(),
+          error: 'Unable to load account. Please try again.',
         );
       } finally {
         _isCheckingAccount = false;
@@ -220,12 +208,9 @@ class AuthNotifier extends Notifier<AuthState> {
 
   Future<void> logout() async {
     try {
-      debugPrint('Logging out user...');
       state = const AuthState(loading: false);
       await _auth.signOut();
-      debugPrint('User logged out successfully');
     } catch (error) {
-      debugPrint('Logout error: $error');
       state = state.copyWith(error: 'Failed to log out. Please try again.');
       rethrow;
     }
@@ -234,22 +219,8 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<String?> sendPhoneOtp(
     String phone, {
     bool forceResend = false,
-    bool signInOnAutoVerify = true,
-  }) async {
-    final completer = Completer<String?>();
-    await _phoneAuth.sendOtp(
-      phone,
-      forceResend: forceResend,
-      onCodeSent: (_, __) => completer.complete(null),
-      onError: (e) => completer.complete(e),
-      onAutoVerify: signInOnAutoVerify
-          ? (credential) async {
-              await _auth.signInWithCredential(credential);
-              completer.complete(null);
-            }
-          : null,
-    );
-    return completer.future;
+  }) {
+    return _phoneAuth.sendOtp(phone, forceResend: forceResend);
   }
 
   Future<String?> verifyPhoneOtp(String code) async {
@@ -287,7 +258,7 @@ class AuthNotifier extends Notifier<AuthState> {
       await notifications.saveTokenToUser(user.uid);
       notifications.listenTokenRefresh(user.uid);
       return null;
-    } on FirebaseAuthException catch (e) {
+    } catch (e) {
       return mapPhoneAuthError(e);
     }
   }
@@ -334,12 +305,9 @@ class AuthNotifier extends Notifier<AuthState> {
       await notifications.saveTokenToUser(user.uid);
       notifications.listenTokenRefresh(user.uid);
       return null;
-    } on FirebaseAuthException catch (e) {
-      await _auth.signOut();
-      return mapPhoneAuthError(e);
     } catch (e) {
       await _auth.signOut();
-      return 'Signup failed. Please try again.';
+      return mapPhoneAuthError(e);
     } finally {
       _isSigningUp = false;
     }

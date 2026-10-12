@@ -1,12 +1,185 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 
 initializeApp();
 const db = getFirestore();
+const auth = getAuth();
+
+const twoFactorApiKey = defineSecret('TWOFACTOR_API_KEY');
+/** Approved 2Factor SMS OTP template name (Home > SMS OTP > OTP Templates). */
+const TWOFACTOR_OTP_TEMPLATE = 'SoberBuddy';
+const OTP_SEND_COOLDOWN_MS = 30 * 1000;
+/** @type {Map<string, number>} */
+const otpSendCooldownByPhone = new Map();
+
+function normalizeIndianPhone(phoneInput) {
+  const digits = String(phoneInput || '').replace(/\D/g, '');
+  let local = digits;
+  if (digits.length === 12 && digits.startsWith('91')) {
+    local = digits.substring(2);
+  } else if (digits.length === 11 && digits.startsWith('0')) {
+    local = digits.substring(1);
+  }
+  if (local.length !== 10 || !/^[6-9]\d{9}$/.test(local)) {
+    return null;
+  }
+  return {
+    local,
+    e164: `+91${local}`,
+    twoFactor: `91${local}`,
+  };
+}
+
+async function callTwoFactor(path) {
+  const apiKey = twoFactorApiKey.value();
+  if (!apiKey) {
+    throw new HttpsError('failed-precondition', 'OTP service is not configured.');
+  }
+  // Always use SMS OTP API (never /VOICE/...). Template forces SMS body via SBRBDY.
+  const url = `https://2factor.in/API/V1/${apiKey}/${path}`;
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (_) {
+    throw new HttpsError('unavailable', 'Unable to reach OTP service. Please try again.');
+  }
+  let data;
+  try {
+    data = await response.json();
+  } catch (_) {
+    throw new HttpsError('internal', 'Invalid response from OTP service.');
+  }
+  return data;
+}
+
+function mapTwoFactorSendError(data) {
+  const detail = String(data?.Details || data?.Status || 'OTP send failed');
+  const lower = detail.toLowerCase();
+  if (lower.includes('balance') || lower.includes('credit') || lower.includes('insufficient')) {
+    return new HttpsError('resource-exhausted', 'SMS OTP balance exhausted. Please try again later.');
+  }
+  if (lower.includes('dlt') || lower.includes('template') || lower.includes('header')) {
+    return new HttpsError(
+      'failed-precondition',
+      'SMS OTP template is not ready for delivery. Please contact support.',
+    );
+  }
+  return new HttpsError('internal', detail);
+}
+
+exports.sendPhoneOtp = onCall(
+  { secrets: [twoFactorApiKey], region: 'us-central1' },
+  async (request) => {
+    const phoneInfo = normalizeIndianPhone(request.data?.phone);
+    if (!phoneInfo) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Enter a valid 10-digit Indian mobile number.',
+      );
+    }
+
+    const now = Date.now();
+    const lastSent = otpSendCooldownByPhone.get(phoneInfo.twoFactor) || 0;
+    if (now - lastSent < OTP_SEND_COOLDOWN_MS) {
+      const waitSecs = Math.ceil((OTP_SEND_COOLDOWN_MS - (now - lastSent)) / 1000);
+      throw new HttpsError(
+        'resource-exhausted',
+        `Please wait ${waitSecs} seconds before requesting another OTP.`,
+      );
+    }
+
+    // SMS-only: /SMS/.../AUTOGEN/{template} using approved SoberBuddy (SBRBDY) template.
+    const data = await callTwoFactor(
+      `SMS/${phoneInfo.twoFactor}/AUTOGEN/${encodeURIComponent(TWOFACTOR_OTP_TEMPLATE)}`,
+    );
+    console.log('2Factor SMS send', {
+      phone: phoneInfo.twoFactor,
+      template: TWOFACTOR_OTP_TEMPLATE,
+      status: data?.Status,
+      details: data?.Details,
+    });
+    if (String(data?.Status || '').toLowerCase() !== 'success' || !data?.Details) {
+      throw mapTwoFactorSendError(data);
+    }
+
+    otpSendCooldownByPhone.set(phoneInfo.twoFactor, now);
+    return {
+      sessionId: String(data.Details),
+      channel: 'sms',
+      template: TWOFACTOR_OTP_TEMPLATE,
+    };
+  },
+);
+
+exports.verifyPhoneOtp = onCall(
+  { secrets: [twoFactorApiKey], region: 'us-central1' },
+  async (request) => {
+    const phoneInfo = normalizeIndianPhone(request.data?.phone);
+    const sessionId = String(request.data?.sessionId || '').trim();
+    const otp = String(request.data?.otp || '').trim();
+
+    if (!phoneInfo) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Enter a valid 10-digit Indian mobile number.',
+      );
+    }
+    if (!sessionId) {
+      throw new HttpsError('failed-precondition', 'Please request OTP first.');
+    }
+    if (!/^\d{4,6}$/.test(otp)) {
+      throw new HttpsError('invalid-argument', 'Enter a valid OTP.');
+    }
+
+    const data = await callTwoFactor(`SMS/VERIFY/${encodeURIComponent(sessionId)}/${otp}`);
+    if (String(data?.Status || '').toLowerCase() !== 'success') {
+      const detail = String(data?.Details || '').toLowerCase();
+      if (detail.includes('expired')) {
+        throw new HttpsError('deadline-exceeded', 'OTP expired. Tap Resend OTP to get a new code.');
+      }
+      if (detail.includes('mismatch') || detail.includes('not matched') || detail.includes('invalid')) {
+        throw new HttpsError('invalid-argument', 'Incorrect OTP. Please check the code and try again.');
+      }
+      throw new HttpsError(
+        'permission-denied',
+        data?.Details ? String(data.Details) : 'OTP verification failed.',
+      );
+    }
+
+    let user;
+    try {
+      user = await auth.getUserByPhoneNumber(phoneInfo.e164);
+    } catch (error) {
+      if (error?.code !== 'auth/user-not-found') {
+        console.error('getUserByPhoneNumber failed', error);
+        throw new HttpsError('internal', 'Unable to look up account. Please try again.');
+      }
+      try {
+        user = await auth.createUser({ phoneNumber: phoneInfo.e164 });
+      } catch (createError) {
+        console.error('createUser failed', createError);
+        throw new HttpsError('internal', 'Unable to create account. Please try again.');
+      }
+    }
+
+    try {
+      const customToken = await auth.createCustomToken(user.uid);
+      return { customToken, uid: user.uid };
+    } catch (tokenError) {
+      console.error('createCustomToken failed', tokenError);
+      throw new HttpsError(
+        'internal',
+        'Login session could not be created. Please try again in a moment.',
+      );
+    }
+  },
+);
 
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;

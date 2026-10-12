@@ -73,17 +73,29 @@ See [docs/BUSINESS_RULES.md](docs/BUSINESS_RULES.md). DO NOT change pricing/canc
 
 | Task | Read First |
 |------|-----------|
-| Auth | `lib/features/auth/`, `lib/services/firebase_service.dart` |
+| Auth / SMS OTP | `lib/features/auth/`, `lib/services/phone_auth_service.dart`, `../functions/OTP.md` |
 | Booking | `lib/features/booking/`, `lib/services/trip_service.dart` |
 | Maps | `lib/features/booking/widgets/`, `lib/services/location_service.dart` |
 | Profile | `lib/features/profile/` |
 | Navigation | `lib/core/router/app_router.dart` |
 
+## Auth / SMS OTP flow
+
+1. UI (`login_screen` / `signup_screen`) → `AuthNotifier.sendPhoneOtp` / `verifyPhoneOtp` / `signupWithPhone`
+2. `PhoneAuthService` calls Cloud Functions `sendPhoneOtp` / `verifyPhoneOtp` (`us-central1`)
+3. Functions send **SMS** via 2Factor `AUTOGEN/SoberBuddy` (sender `SBRBDY`), then mint Firebase custom token
+4. App `signInWithCustomToken` → load Firestore `users/{uid}` with `userType: consumer`
+
+OTP is **SMS only** (not Firebase Phone Auth / not voice). Accept 4–6 digit codes from SMS.
+
+See root [`functions/OTP.md`](../functions/OTP.md).
+
 ## Setup Requirements
 
 1. Add `google-services.json` (Android) and `GoogleService-Info.plist` (iOS) from Firebase console for native Firebase apps
 2. Google Maps API key is in `lib/core/constants/app_config.dart` and platform manifests
-3. Run: `cd SoberBuddyRiderF && flutter pub get && flutter run`
+3. OTP: deploy `sendPhoneOtp` / `verifyPhoneOtp` + set `TWOFACTOR_API_KEY` secret (see `functions/OTP.md`)
+4. Run: `cd SoberBuddyRiderF && flutter pub get && flutter run`
 
 ## Prompt Instructions for AI
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ionicons/ionicons.dart';
 import 'package:provider/provider.dart';
@@ -37,18 +38,30 @@ class _LoginScreenState extends State<LoginScreen> {
         );
     setState(() {
       _loading = false;
-      if (error == null) _otpSent = true;
+      if (error == null) {
+        _otpSent = true;
+        _otpController.clear();
+      }
     });
-    if (error != null && mounted) _showError(error);
+    if (!mounted) return;
+    if (error != null) {
+      _showError(error);
+    } else {
+      _showInfo(
+        'SMS sent',
+        'We sent an SMS OTP to +91${_phoneController.text.trim()}. Enter the code from the message.',
+      );
+    }
   }
 
   Future<void> _verifyOtp() async {
-    if (_otpController.text.length < 6) {
-      _showError('Enter the 6-digit OTP');
+    final otp = _otpController.text.trim();
+    if (otp.length < 4 || otp.length > 6 || !RegExp(r'^\d+$').hasMatch(otp)) {
+      _showError('Enter the 4–6 digit OTP from your SMS');
       return;
     }
     setState(() => _loading = true);
-    final error = await context.read<AuthProvider>().verifyPhoneOtp(_otpController.text.trim());
+    final error = await context.read<AuthProvider>().verifyPhoneOtp(otp);
     setState(() => _loading = false);
     if (error != null && mounted) _showError(error);
   }
@@ -58,6 +71,19 @@ class _LoginScreenState extends State<LoginScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Login Failed'),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
+  void _showInfo(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
         content: Text(message),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
@@ -87,8 +113,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    'Login with mobile OTP',
+                    'Login with SMS OTP',
                     style: TextStyle(color: Color(0xFFB3B3B3), fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'We will send a one-time code by SMS',
+                    style: TextStyle(color: Color(0xFF808080), fontSize: 13),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
                   IconTextInput(
@@ -97,28 +129,32 @@ class _LoginScreenState extends State<LoginScreen> {
                     icon: Ionicons.call_outline,
                     keyboardType: TextInputType.phone,
                     readOnly: _otpSent,
+                    maxLength: 10,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                   if (_otpSent) ...[
                     const SizedBox(height: 16),
                     IconTextInput(
                       controller: _otpController,
-                      hint: 'Enter OTP',
+                      hint: 'Enter SMS OTP (4–6 digits)',
                       icon: Ionicons.keypad_outline,
                       keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     ),
                   ],
                   const SizedBox(height: 24),
                   PrimaryButton(
                     label: _loading
                         ? 'Please wait...'
-                        : (_otpSent ? 'Verify OTP' : 'Send OTP'),
+                        : (_otpSent ? 'Verify OTP' : 'Send SMS OTP'),
                     icon: Ionicons.car_sport,
                     loading: _loading,
                     onPressed: _otpSent ? _verifyOtp : _sendOtp,
                   ),
                   if (_otpSent) ...[
                     const SizedBox(height: 12),
-                    TextButton(onPressed: _sendOtp, child: const Text('Resend OTP')),
+                    TextButton(onPressed: _loading ? null : _sendOtp, child: const Text('Resend SMS OTP')),
                   ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,

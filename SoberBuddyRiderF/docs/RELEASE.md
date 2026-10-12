@@ -37,6 +37,14 @@ Output: `build/app/outputs/bundle/release/app-release.aab`
 
 **Important:** Release builds use `com.soberbuddy.rider` (no `.dev` suffix). Debug builds use `com.soberbuddy.rider.dev` for side-by-side testing.
 
+Release builds **fail** if `android/key.properties` is missing (no debug-signing fallback).
+
+### Phone OTP (2Factor)
+
+Rider OTP uses **2Factor.in** via Cloud Functions (`sendPhoneOtp` / `verifyPhoneOtp`), then Firebase `signInWithCustomToken`. See [`functions/OTP.md`](../../functions/OTP.md) for secret setup and deploy.
+
+Firebase Phone Auth SMS / SHA fingerprints are **not** required for Rider OTP anymore (still useful for other Firebase features).
+
 ## iOS TestFlight
 
 1. Add `GoogleService-Info.plist` to Xcode Runner target
