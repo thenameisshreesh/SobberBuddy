@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:ionicons/ionicons.dart';
+import '../core/constants/app_constants.dart';
 import '../core/constants/theme.dart';
 import '../services/location_service.dart';
+import '../services/route_service.dart';
+import 'route_animation.dart';
 
 class MapComponent extends StatefulWidget {
   const MapComponent({
@@ -12,6 +15,9 @@ class MapComponent extends StatefulWidget {
     this.userLocation,
     this.pickupLocation,
     this.dropoffLocation,
+    this.routeOrigin,
+    this.routeDestination,
+    this.routePadding = 70,
     this.onLocationUpdate,
   });
 
@@ -19,20 +25,69 @@ class MapComponent extends StatefulWidget {
   final LatLng? userLocation;
   final LatLng? pickupLocation;
   final LatLng? dropoffLocation;
+
+  /// When both are set, the shortest road route between them is drawn and animated.
+  final LatLng? routeOrigin;
+  final LatLng? routeDestination;
+  final double routePadding;
   final ValueChanged<LatLng>? onLocationUpdate;
 
   @override
   State<MapComponent> createState() => _MapComponentState();
 }
 
-class _MapComponentState extends State<MapComponent> {
+class _MapComponentState extends State<MapComponent> with SingleTickerProviderStateMixin {
   GoogleMapController? _controller;
   String? _mapStyle;
+  late final RouteAnimation _route =
+      RouteAnimation(vsync: this, color: AppColors.primary);
+  final _routeService = RouteService(AppConstants.googleMapsApiKey);
+  String? _routeKey;
 
   @override
   void initState() {
     super.initState();
     _loadMapStyle();
+    _syncRoute();
+  }
+
+  @override
+  void didUpdateWidget(MapComponent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncRoute();
+  }
+
+  @override
+  void dispose() {
+    _route.dispose();
+    super.dispose();
+  }
+
+  Future<void> _syncRoute() async {
+    final origin = widget.routeOrigin;
+    final destination = widget.routeDestination;
+    final key = origin == null || destination == null
+        ? null
+        : '${origin.latitude},${origin.longitude}|${destination.latitude},${destination.longitude}';
+    if (key == _routeKey) return;
+    _routeKey = key;
+
+    if (origin == null || destination == null) {
+      _route.clear();
+      return;
+    }
+    final result = await _routeService.shortestRoute(origin, destination);
+    if (!mounted || key != _routeKey) return;
+    _route.setRoute(result.points);
+    await _fitRoute();
+  }
+
+  Future<void> _fitRoute() async {
+    final controller = _controller;
+    if (controller == null || _route.points.length < 2) return;
+    await controller.animateCamera(
+      CameraUpdate.newLatLngBounds(boundsFor(_route.points), widget.routePadding),
+    );
   }
 
   Future<void> _loadMapStyle() async {
@@ -87,16 +142,24 @@ class _MapComponentState extends State<MapComponent> {
         widget.userLocation ??
         const LatLng(28.6139, 77.2090);
 
+    final markers = _markers;
     return Stack(
       children: [
-        GoogleMap(
-          initialCameraPosition: CameraPosition(target: initial, zoom: 15),
-          markers: _markers,
-          myLocationEnabled: false,
-          myLocationButtonEnabled: false,
-          compassEnabled: false,
-          style: _mapStyle,
-          onMapCreated: (controller) => _controller = controller,
+        ListenableBuilder(
+          listenable: _route,
+          builder: (context, _) => GoogleMap(
+            initialCameraPosition: CameraPosition(target: initial, zoom: 15),
+            markers: markers,
+            polylines: _route.polylines,
+            myLocationEnabled: false,
+            myLocationButtonEnabled: false,
+            compassEnabled: false,
+            style: _mapStyle,
+            onMapCreated: (controller) {
+              _controller = controller;
+              _fitRoute();
+            },
+          ),
         ),
         Positioned(
           right: 20,

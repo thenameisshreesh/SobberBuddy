@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:ionicons/ionicons.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -32,6 +36,12 @@ class _TripScreenState extends State<TripScreen> {
   late String _tripPhase;
   bool _loading = false;
   DateTime? _tripStartTime;
+  LatLng? _driverLocation;
+  LatLng? _pickupRouteOrigin;
+  Timer? _locationTimer;
+
+  /// Re-route to pickup only after the driver drifts this far from the last route start.
+  static const _rerouteDistanceMeters = 300.0;
 
   @override
   void initState() {
@@ -41,6 +51,33 @@ class _TripScreenState extends State<TripScreen> {
     if (widget.trip.startedAt != null) {
       _tripStartTime = widget.trip.startedAt!.toDate();
     }
+    _refreshDriverLocation();
+    _locationTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _refreshDriverLocation(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _locationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refreshDriverLocation() async {
+    final coords = await _locationService.getCurrentLocation();
+    if (coords == null || !mounted) return;
+    final location = LatLng(coords.latitude, coords.longitude);
+    final origin = _pickupRouteOrigin;
+    setState(() {
+      _driverLocation = location;
+      if (origin == null ||
+          Geolocator.distanceBetween(origin.latitude, origin.longitude,
+                  location.latitude, location.longitude) >
+              _rerouteDistanceMeters) {
+        _pickupRouteOrigin = location;
+      }
+    });
   }
 
   void _handleCancellation(TripModel cancelledTrip) async {
@@ -280,8 +317,15 @@ class _TripScreenState extends State<TripScreen> {
                   child: pickup != null
                       ? MapComponent(
                           initialPosition: pickup,
+                          userLocation: _driverLocation,
                           pickupLocation: pickup,
                           dropoffLocation: dropoff,
+                          routeOrigin: _tripPhase == 'pickup' && _pickupRouteOrigin != null
+                              ? _pickupRouteOrigin
+                              : pickup,
+                          routeDestination: _tripPhase == 'pickup' && _pickupRouteOrigin != null
+                              ? pickup
+                              : dropoff,
                         )
                       : const Center(child: Text('Map unavailable')),
                 ),
