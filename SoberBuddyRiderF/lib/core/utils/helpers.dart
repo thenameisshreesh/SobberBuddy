@@ -133,7 +133,7 @@ class AppHelpers {
     } else {
       return 'N/A';
     }
-    return DateFormat('d MMM yyyy, hh:mm a', 'en_IN').format(dateObj);
+    return DateFormat('d MMM yyyy, hh:mm a').format(dateObj);
   }
 
   static String formatDuration(double minutes) {

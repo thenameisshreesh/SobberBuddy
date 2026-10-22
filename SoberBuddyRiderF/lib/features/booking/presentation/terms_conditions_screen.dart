@@ -8,7 +8,7 @@ class TermsConditionsScreen extends StatelessWidget {
   const TermsConditionsScreen({super.key});
 
   static final _lastUpdated =
-      DateFormat('d/M/yyyy', 'en_IN').format(DateTime.now());
+      DateFormat('d/M/yyyy').format(DateTime.now());
 
   @override
   Widget build(BuildContext context) {

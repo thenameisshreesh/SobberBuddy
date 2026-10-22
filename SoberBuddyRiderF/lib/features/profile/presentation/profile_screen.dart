@@ -106,6 +106,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _showAlert('Error', 'Please enter a valid phone number');
       return false;
     }
+    final email = _emailController.text.trim();
+    if (email.isNotEmpty &&
+        !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      _showAlert('Error', 'Please enter a valid email address');
+      return false;
+    }
     return true;
   }
 
@@ -212,6 +218,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'mobile': _phoneController.text.trim(),
+        'email': _emailController.text.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -445,8 +452,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     label: 'Email Address',
                     icon: Icons.mail_outline,
                     controller: _emailController,
-                    enabled: false,
-                    helperText: 'Email cannot be changed',
+                    enabled: _isEditing,
+                    keyboardType: TextInputType.emailAddress,
                   ),
                   if (_isEditing) ...[
                     const SizedBox(height: AppSpacing.lg),
@@ -553,7 +560,6 @@ class _ProfileField extends StatelessWidget {
     required this.controller,
     required this.enabled,
     this.keyboardType,
-    this.helperText,
   });
 
   final String label;
@@ -561,7 +567,6 @@ class _ProfileField extends StatelessWidget {
   final TextEditingController controller;
   final bool enabled;
   final TextInputType? keyboardType;
-  final String? helperText;
 
   @override
   Widget build(BuildContext context) {
@@ -607,13 +612,6 @@ class _ProfileField extends StatelessWidget {
             ],
           ),
         ),
-        if (helperText != null) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            helperText!,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-        ],
       ],
     );
   }

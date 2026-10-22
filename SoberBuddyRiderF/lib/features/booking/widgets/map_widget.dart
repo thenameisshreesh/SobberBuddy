@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/constants/app_config.dart';
 import '../../../core/constants/app_theme.dart';
+import '../../../core/widgets/route_animation.dart';
 import '../../../services/location_service.dart';
+import '../../../services/route_service.dart';
 
 class MapRegion {
   const MapRegion({
@@ -69,9 +72,19 @@ class MapWidget extends StatefulWidget {
   State<MapWidget> createState() => _MapWidgetState();
 }
 
-class _MapWidgetState extends State<MapWidget> {
+class _MapWidgetState extends State<MapWidget> with SingleTickerProviderStateMixin {
   GoogleMapController? _controller;
   MapRegion? _lastRegion;
+  late final RouteAnimation _route =
+      RouteAnimation(vsync: this, color: AppColors.primary);
+  final _routeService = RouteService(AppConfig.googleMapsApiKey);
+  String? _routeKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncRoute();
+  }
 
   @override
   void didUpdateWidget(MapWidget oldWidget) {
@@ -81,6 +94,52 @@ class _MapWidgetState extends State<MapWidget> {
         widget.region.latitudeDelta != oldWidget.region.latitudeDelta) {
       _animateToRegion(widget.region);
     }
+    _syncRoute();
+  }
+
+  @override
+  void dispose() {
+    _route.dispose();
+    super.dispose();
+  }
+
+  (LatLng, LatLng)? get _routeEnds {
+    final pickup = widget.userLocation;
+    final dropoff = widget.dropoffLocation;
+    final hasPickupAddress = widget.currentAddress?.trim().isNotEmpty ?? false;
+    if (!widget.showRoute || pickup == null || dropoff == null || !hasPickupAddress) {
+      return null;
+    }
+    return (
+      LatLng(pickup.latitude, pickup.longitude),
+      LatLng(dropoff.latitude, dropoff.longitude),
+    );
+  }
+
+  Future<void> _syncRoute() async {
+    final ends = _routeEnds;
+    final key = ends == null
+        ? null
+        : '${ends.$1.latitude},${ends.$1.longitude}|${ends.$2.latitude},${ends.$2.longitude}';
+    if (key == _routeKey) return;
+    _routeKey = key;
+
+    if (ends == null) {
+      _route.clear();
+      return;
+    }
+    final result = await _routeService.shortestRoute(ends.$1, ends.$2);
+    if (!mounted || key != _routeKey) return;
+    _route.setRoute(result.points);
+    await _fitRoute();
+  }
+
+  Future<void> _fitRoute() async {
+    final controller = _controller;
+    if (controller == null || _route.points.length < 2) return;
+    await controller.animateCamera(
+      CameraUpdate.newLatLngBounds(boundsFor(_route.points), 80),
+    );
   }
 
   Future<void> _animateToRegion(MapRegion region) async {
@@ -134,46 +193,29 @@ class _MapWidgetState extends State<MapWidget> {
     return markers;
   }
 
-  Set<Polyline> _buildPolylines() {
-    final pickup = widget.userLocation;
-    final dropoff = widget.dropoffLocation;
-    final hasPickupAddress = widget.currentAddress?.trim().isNotEmpty ?? false;
-
-    if (!widget.showRoute || pickup == null || dropoff == null || !hasPickupAddress) {
-      return {};
-    }
-
-    return {
-      Polyline(
-        polylineId: const PolylineId('route'),
-        points: [
-          LatLng(pickup.latitude, pickup.longitude),
-          LatLng(dropoff.latitude, dropoff.longitude),
-        ],
-        color: AppColors.primary,
-        width: 4,
-        patterns: [PatternItem.dash(20), PatternItem.gap(10)],
-      ),
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
+    final markers = _buildMarkers();
     return Stack(
       children: [
-        GoogleMap(
-          initialCameraPosition: widget.region.toCameraPosition(),
-          onMapCreated: (controller) {
-            _controller = controller;
-            unawaited(_animateToRegion(widget.region));
-          },
-          style: _darkMapStyle,
-          myLocationEnabled: false,
-          myLocationButtonEnabled: false,
-          compassEnabled: false,
-          zoomControlsEnabled: false,
-          markers: _buildMarkers(),
-          polylines: _buildPolylines(),
+        ListenableBuilder(
+          listenable: _route,
+          builder: (context, _) => GoogleMap(
+            initialCameraPosition: widget.region.toCameraPosition(),
+            onMapCreated: (controller) {
+              _controller = controller;
+              unawaited(
+                _route.points.length >= 2 ? _fitRoute() : _animateToRegion(widget.region),
+              );
+            },
+            style: _darkMapStyle,
+            myLocationEnabled: false,
+            myLocationButtonEnabled: false,
+            compassEnabled: false,
+            zoomControlsEnabled: false,
+            markers: markers,
+            polylines: _route.polylines,
+          ),
         ),
         if (widget.onCurrentLocationPress != null)
           Positioned(
